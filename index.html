@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Manga Cam</title>
+<meta name="theme-color" content="#14110F">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+<!-- ============ PANTALLA: PERMISO / ARRANQUE ============ -->
+<section id="screen-boot" class="screen panel active">
+  <div class="panel-inner boot-inner">
+    <h1 class="brand">MANGA<span>CAM</span></h1>
+    <p class="lede">Cámara + stickers de rostro. Todo corre en tu celular — nada se sube a ningún servidor.</p>
+
+    <div id="insecure-warning" class="alert-box hidden">
+      <strong>Conexión no segura.</strong>
+      <p>Esta página se abrió sin HTTPS (o desde un archivo local). El navegador bloquea la cámara en ese caso, sin importar el permiso del sistema. Necesitás alojar la app con HTTPS para que funcione.</p>
+    </div>
+
+    <div id="denied-warning" class="alert-box hidden">
+      <strong>No pudimos acceder a la cámara.</strong>
+      <p id="denied-reason">Puede que hayas rechazado el permiso, o que otra app la esté usando.</p>
+      <p>Revisá los permisos del navegador para este sitio (ícono de candado / info en la barra de direcciones) y activá la cámara, luego reintentá.</p>
+      <button id="btn-retry-camera" class="btn btn-primary">Reintentar</button>
+    </div>
+
+    <label class="home-label" for="home-char">PERSONAJE ACTIVO</label>
+    <select id="home-char" class="cfg-select"></select>
+    <button id="btn-home-chars" class="btn btn-ghost" type="button">PERSONAJES</button>
+    <button id="btn-start-camera" class="btn btn-primary btn-lg">ABRIR CÁMARA</button>
+  </div>
+</section>
+
+<!-- ============ PANTALLA: CÁMARA PRINCIPAL ============ -->
+<section id="screen-camera" class="screen">
+  <div class="cam-stage">
+    <video id="video" playsinline muted autoplay class="hidden-video"></video>
+    <canvas id="canvas-output"></canvas>
+
+    <div class="hud-top">
+      <button id="btn-open-settings" class="icon-btn" aria-label="Ajustes">☰</button>
+      <div id="rec-timer" class="rec-timer hidden">● <span id="rec-timer-value">00:00</span></div>
+      <button id="btn-flip-camera" class="icon-btn" aria-label="Girar cámara">⟲</button>
+    </div>
+
+    <div id="zoom-wrap" class="zoom-wrap hidden">
+      <input id="zoom-slider" type="range" min="1" max="8" step="0.1" value="1" orient="vertical">
+    </div>
+
+    <div id="tracking-hint" class="tracking-hint hidden">Buscando tu rostro…</div>
+
+    <div class="hud-bottom">
+      <div class="quick-fit">
+        <label>Tamaño
+          <input id="fit-size" type="range" min="0.5" max="2" step="0.01" value="1">
+        </label>
+        <label>Altura
+          <input id="fit-offset" type="range" min="-1" max="1" step="0.01" value="0">
+        </label>
+      </div>
+      <button id="btn-record" class="record-btn" aria-label="Grabar">
+        <span class="record-btn-core"></span>
+      </button>
+      <div class="hud-bottom-spacer"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PANTALLA: VISTA PREVIA DE VIDEO ============ -->
+<section id="screen-preview" class="screen">
+  <div class="panel-inner preview-inner">
+    <h2 class="panel-title">¡Listo!</h2>
+    <video id="preview-video" controls playsinline class="preview-video"></video>
+    <div class="preview-actions">
+      <a id="btn-download" class="btn btn-primary" download="manga-cam.webm">Descargar video</a>
+      <button id="btn-discard" class="btn btn-ghost">Descartar</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PANEL LATERAL: AJUSTES ============ -->
+<aside id="panel-settings" class="settings-panel">
+  <div class="settings-header">
+    <h2 class="panel-title">Ajustes</h2>
+    <button id="btn-close-settings" class="icon-btn" aria-label="Cerrar">✕</button>
+  </div>
+
+  <div class="settings-scroll">
+
+    <section class="settings-section">
+      <h3>General</h3>
+      <label class="switch-row">
+        <span>Invertir izquierda / derecha</span>
+        <input id="toggle-mirror-angle" type="checkbox">
+      </label>
+      <label class="switch-row">
+        <span>Oclusión de manos (experimental)</span>
+        <input id="toggle-hand-occlusion" type="checkbox">
+      </label>
+      <p id="hand-occlusion-status" class="hint-text"></p>
+    </section>
+
+    <section class="settings-section">
+      <h3>Personajes</h3>
+      <select id="char-select" aria-label="Personaje activo"></select>
+      <div class="char-row">
+        <button id="btn-char-new" class="btn btn-primary" type="button">+ Nuevo</button>
+        <button id="btn-char-rename" class="btn btn-ghost" type="button">Renombrar</button>
+        <button id="btn-char-dup" class="btn btn-ghost" type="button">Duplicar</button>
+        <button id="btn-char-del" class="btn btn-ghost" type="button">Eliminar</button>
+      </div>
+      <p id="char-status" class="hint-text">Cada personaje guarda sus stickers en este dispositivo.</p>
+    </section>
+
+    <section class="settings-section">
+      <h3>Expresiones</h3>
+      <div class="char-row">
+        <button id="btn-calib-start" class="btn btn-primary" type="button">Calibrar</button>
+        <button id="btn-calib-reset" class="btn btn-ghost" type="button">Restaurar</button>
+      </div>
+      <p id="calib-status" class="hint-text"></p>
+      <p class="hint-text">Con calibración activa, la inversión izquierda/derecha se ajusta sola.</p>
+    </section>
+
+    <section class="settings-section">
+      <h3>Cámara</h3>
+      <label>Resolución <select id="cfg-res" class="cfg-select"><option value="auto">Automática</option><option value="480">480p</option><option value="720">720p</option><option value="1080">1080p</option></select></label>
+      <label>FPS <select id="cfg-fps" class="cfg-select"><option value="auto">Automático</option><option value="24">24</option><option value="30">30</option><option value="60">60</option></select></label>
+      <label><input id="cfg-mic" type="checkbox"> Usar micrófono</label>
+      <label><input id="cfg-hud" type="checkbox"> Mostrar fps reales en pantalla</label>
+      <p class="hint-text">Girar cámara y zoom están en la pantalla de cámara; el zoom solo aparece si tu dispositivo lo permite.</p>
+    </section>
+
+    <section class="settings-section">
+      <h3>Rendimiento</h3>
+      <select id="cfg-perf" class="cfg-select"><option value="alta">Alta (máxima calidad)</option><option value="equilibrada">Equilibrada (recomendada)</option><option value="ahorro">Ahorro (sin oclusión)</option></select>
+      <label><input id="cfg-perf-auto" type="checkbox"> Reducir carga automáticamente si va lento</label>
+    </section>
+
+    <section class="settings-section">
+      <h3>Compatibilidad</h3>
+      <ul id="compat-list" class="compat-list"></ul>
+    </section>
+
+    <section class="settings-section">
+      <h3>Stickers por expresión y ángulo</h3>
+      <p class="hint-text">Subí un PNG para cada combinación. Si falta una, se usa "neutral + frontal" como respaldo.</p>
+      <div id="sticker-grid"></div>
+    </section>
+
+    <section class="settings-section">
+      <h3>Instalar</h3>
+      <button id="btn-install" class="btn btn-primary hidden">Instalar app</button>
+      <div id="install-instructions" class="install-instructions hidden"></div>
+    </section>
+
+  </div>
+</aside>
+<div id="settings-scrim" class="scrim"></div>
+
+<div id="calib" class="calib hidden">
+  <div class="calib-box">
+    <h3 id="calib-title"></h3><p id="calib-text"></p><p id="calib-count"></p>
+    <div class="calib-bar"><span id="calib-fill"></span></div>
+    <button id="btn-calib-cancel" class="btn btn-ghost" type="button">Cancelar</button>
+  </div>
+</div>
+
+<div id="editor" class="calib hidden">
+  <div class="calib-box editor-box">
+    <h3 id="ed-title"></h3>
+    <canvas id="ed-canvas" width="240" height="240"></canvas>
+    <label>Escala <input id="ed-scale" type="range" min="0.5" max="2" step="0.01"></label>
+    <label>Posición X <input id="ed-x" type="range" min="-1" max="1" step="0.01"></label>
+    <label>Posición Y <input id="ed-y" type="range" min="-1" max="1" step="0.01"></label>
+    <label>Rotación <input id="ed-rot" type="range" min="-45" max="45" step="1"></label>
+    <label><input id="ed-mirror" type="checkbox"> Espejar</label>
+    <div class="char-row">
+      <button id="ed-all" class="btn btn-ghost" type="button">Aplicar a todos</button>
+      <button id="ed-mirror-all" class="btn btn-ghost" type="button">Espejar todos</button>
+      <button id="ed-reset" class="btn btn-ghost" type="button">Restaurar</button>
+      <button id="ed-reset-all" class="btn btn-ghost" type="button">Restaurar todos</button>
+    </div>
+    <button id="ed-close" class="btn btn-primary" type="button">Listo</button>
+  </div>
+</div>
+
+<div id="fps-hud" class="fps-hud hidden"></div>
+
+<div id="toast" class="toast hidden"></div>
+
+<div id="update-banner" class="update-banner hidden">
+  <span><strong>Nueva versión disponible</strong><br>Manga Cam se ha actualizado.</span>
+  <button id="btn-update" class="btn btn-primary" type="button">ACTUALIZAR</button>
+</div>
+
+<script src="./app.js"></script>
+</body>
+</html>
